@@ -298,12 +298,14 @@ class Message:
 
         model_header = "Single PT |  Multi PT | Single TF |  Multi TF |     Other | Category\n"
         sorted_model_reports = sorted(model_reports, key=lambda s: s.split("] ")[-1])
+        sorted_model_reports = sorted_model_reports * 1024
         model_failures_report = prepare_reports(
             title="These following model modules had failures", header=model_header, reports=sorted_model_reports
         )
 
         module_header = "Single |  Multi | Category\n"
         sorted_module_reports = sorted(other_module_reports, key=lambda s: s.split("] ")[-1])
+        sorted_module_reports = sorted_module_reports * 1024
         module_failures_report = prepare_reports(
             title="The following non-model modules had failures", header=module_header, reports=sorted_module_reports
         )
