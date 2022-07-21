@@ -1,6 +1,6 @@
 python -m torch.distributed.launch --nproc_per_node=1 /cb/home/vinayr/ws/global_rigl/mlresearch/transformers/examples/pytorch/language-modeling/run_clm.py \
     --model_type gpt2 \
-    --config_overrides="n_embd=768,n_head=12,n_layer=12,n_positions=1024,mup=True" \
+    --config_overrides="n_embd=768,n_head=12,n_layer=12,n_positions=1024,mup=True,attn_mult=8" \
     --optim adamw_mup \
     --dataset_name wikitext \
     --dataset_config_name wikitext-103-raw-v1 \

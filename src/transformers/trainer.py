@@ -1256,6 +1256,8 @@ class Trainer:
                 self.state.save_to_json(os.path.join(output_dir, TRAINER_STATE_NAME))
                 torch.save(self.optimizer.state_dict(), os.path.join(output_dir, OPTIMIZER_NAME))
                 torch.save(self.lr_scheduler.state_dict(), os.path.join(output_dir, SCHEDULER_NAME))
+                if self.mask_optimizer is not None:
+                    torch.save(self.mask_optimizer.state_dict(), os.path.join(output_dir, SPARSE_OPTIMIZER_NAME))
 
     def call_model_init(self, trial=None):
         model_init_argcount = number_of_arguments(self.model_init)
