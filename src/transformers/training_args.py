@@ -1614,6 +1614,96 @@ class TrainingArguments:
         return {k: v if type(v) in valid_types else str(v) for k, v in d.items()}
 
 
+class SparseOptimizerNames(ExplicitEnum):
+    """
+    Stores the acceptable string identifiers for sparse optimizers.
+    """
+    STATIC = "static"
+    RIGL = "rigl"
+    GLOBAL_RIGL = "global_rigl"
+    SET = "set"
+
+
+@dataclass
+class SparsityArguments:
+    maskopt: Optional[Union[SparseOptimizerNames, str]] = field(
+        default="static",
+        metadata={"help": "Sparse optimizer name: static/rigl/global_rigl/set."}
+    )
+    maskopt_sparsity: Optional[float] = field(
+        default=0.,
+        metadata={"help": "Sparsity level"})
+    maskopt_start_sparsity: Optional[float] = field(
+        default=0.,
+        metadata={"help": "Sparsity starting level"})
+    maskopt_sparsity_sched: Optional[str] = field(
+        default='constant',
+        metadata={"help": "Sparsity schedule"})
+    maskopt_sparsity_sched_start_itr: Optional[int] = field(
+        default=0,
+        metadata={"help": "Iteration to start sparsity schedule."})
+    maskopt_sparsity_sched_end_itr: Optional[int] = field(
+        default=0,
+        metadata={"help": "Sparsity starting level"})
+    maskopt_begin_iteration: Optional[int] = field(
+        default=0,
+        metadata={"help": "Iteration to start sparsity updates."})
+    maskopt_end_iteration: Optional[int] = field(
+        default=0,
+        metadata={"help": "Iteration to end sparsity updates."})
+    maskopt_frequency: Optional[int] = field(
+        default=100,
+        metadata={"help": "Mask update frequency"})
+    maskopt_drop_fraction: Optional[float] = field(
+        default=0.3,
+        metadata={"help": "fraction of params to drop."}
+    )
+    maskopt_drop_fraction_anneal: Optional[str] = field(
+        default='cosine',
+        metadata={"help": "Anneal method for dropping"}
+    )
+    maskopt_mask_distribution: Optional[str] = field(
+        default='uniform',
+        metadata={"help": "Sparsity mask distribution"}
+    )
+    maskopt_mask_init_method: Optional[str] = field(
+        default='random',
+        metadata={"help": "Sparsity mask initialization"}
+    )
+    maskopt_erk_power_scale: Optional[float] = field(
+        default=1.0,
+        metadata={"help": "ERK Power scale"}
+    )
+    maskopt_mask_metrics: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Compute mask running metrics"}
+    )
+    maskopt_verbose: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Print running information about masks"}
+    )
+    no_resume_mask_opt: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Prevent resuming mask optimizer state"}
+    )
+    sparsify_attention: Optional[bool] = field(
+        default=True,
+        metadata={"help": "Sparsify attention layers"}
+    )
+    sparsify_ffn: Optional[bool] = field(
+        default=True,
+        metadata={"help": "Sparsify FFN layers"}
+    )
+    maskopt_global_norm_weights_type: Optional[str] = field(
+        default='none',
+        metadata={"help": "Normalization on weights for mask updates"}
+    )
+    maskopt_global_norm_grads_type: Optional[str] = field(
+        default='all_axes',
+        metadata={"help": "Normalization on gradients for mask updates"}
+    )
+
+
 class ParallelMode(Enum):
     NOT_PARALLEL = "not_parallel"
     NOT_DISTRIBUTED = "not_distributed"

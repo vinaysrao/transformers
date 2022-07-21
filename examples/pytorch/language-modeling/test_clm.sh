@@ -12,4 +12,5 @@ python -m torch.distributed.launch --nproc_per_node=1 /cb/home/vinayr/ws/global_
     --max_steps 50 \
     --logging_steps 5 \
     --overwrite_output_dir \
-    --tokenizer_name gpt2
+    --tokenizer_name gpt2 \
+    --maskopt global_rigl --maskopt_sparsity 0.5 --maskopt_start_sparsity 0.5

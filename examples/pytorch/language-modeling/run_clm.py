@@ -42,6 +42,7 @@ from transformers import (
     HfArgumentParser,
     Trainer,
     TrainingArguments,
+    SparsityArguments,
     default_data_collator,
     is_torch_tpu_available,
     set_seed,
@@ -53,7 +54,7 @@ from transformers.utils.versions import require_version
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
-check_min_version("4.21.0.dev0")
+check_min_version("4.21.0.dev0-vinayr")
 
 require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/language-modeling/requirements.txt")
 
@@ -206,13 +207,13 @@ def main():
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
+    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments, SparsityArguments))
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
-        model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
+        model_args, data_args, training_args, sparsity_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
     else:
-        model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+        model_args, data_args, training_args, sparsity_args = parser.parse_args_into_dataclasses()
 
     # Sending telemetry. Tracking the example usage helps us better allocate resources to maintain them. The
     # information sent is the one passed as arguments along with your Python/PyTorch versions.
@@ -390,7 +391,7 @@ def main():
             delta_config = CONFIG_MAPPING[model_args.model_type](mup=True)
             delta_config.update(dict(n_embd=200, n_head=5))
             delta_model = model = AutoModelForCausalLM.from_config(delta_config)
-            base_shapes = make_base_shapes(model, delta_model, savefile=f'{training_args.output_dir}/mup.bsh')
+            base_shapes = make_base_shapes(model, delta_model, savefile=f'./mup.bsh')
             set_base_shapes(model, base_shapes)
         n_params = sum(dict((p.data_ptr(), p.numel()) for p in model.parameters()).values())
         logger.info(f"Training new model from scratch - Total size={n_params/2**20:.2f}M params")
@@ -524,6 +525,7 @@ def main():
         preprocess_logits_for_metrics=preprocess_logits_for_metrics
         if training_args.do_eval and not is_torch_tpu_available()
         else None,
+        sparsity_args=sparsity_args,
     )
 
     # Training

@@ -195,7 +195,6 @@ class GPT2Config(PretrainedConfig):
 
         self.mup = mup
         self.attn_mult = None
-        print('*' * 10 + f'{self.mup}', flush=True)
          ### muP
         if self.mup:
             if attn_mult is None:

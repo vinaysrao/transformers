@@ -61,6 +61,8 @@ from torch.utils.data.distributed import DistributedSampler
 
 from huggingface_hub import Repository
 
+from cerebras.sparse.utils import create_mask_optimizer
+
 from . import __version__
 from .configuration_utils import PretrainedConfig
 from .data.data_collator import DataCollator, DataCollatorWithPadding, default_data_collator
@@ -128,7 +130,7 @@ from .trainer_utils import (
     set_seed,
     speed_metrics,
 )
-from .training_args import OptimizerNames, ParallelMode, TrainingArguments
+from .training_args import OptimizerNames, ParallelMode, TrainingArguments, SparsityArguments
 from .utils import (
     CONFIG_NAME,
     WEIGHTS_INDEX_NAME,
@@ -207,6 +209,21 @@ TRAINER_STATE_NAME = "trainer_state.json"
 OPTIMIZER_NAME = "optimizer.pt"
 SCHEDULER_NAME = "scheduler.pt"
 SCALER_NAME = "scaler.pt"
+SPARSE_OPTIMIZER_NAME = "sparse_optimizer.pt"
+
+
+def _get_should_sparsify(args, model):
+    if callable(getattr(model, 'should_sparsify', None)):
+        fn = model.should_sparsify
+    else:
+        if args.maskopt is not None and args.maskopt_sparsity > 0.:
+            raise ValueError(
+                'Current model does not implement `should_sparsify`. '
+                'This codepath will fail because mask '
+                'optimizers expect a non-empty list of parameters '
+                'to sparsify.')
+        fn = lambda n, p, args: False
+    return functools.partial(fn, args=args)
 
 
 class Trainer:
@@ -306,12 +323,14 @@ class Trainer:
         callbacks: Optional[List[TrainerCallback]] = None,
         optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR] = (None, None),
         preprocess_logits_for_metrics: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] = None,
+        sparsity_args: SparsityArguments = None,
     ):
         if args is None:
             output_dir = "tmp_trainer"
             logger.info(f"No `TrainingArguments` passed, using `output_dir={output_dir}`.")
             args = TrainingArguments(output_dir=output_dir)
         self.args = args
+        self.sparsity_args = sparsity_args
         # Seed must be set before instantiating the model when using model
         enable_full_determinism(self.args.seed) if self.args.full_determinism else set_seed(self.args.seed)
         self.hp_name = None
@@ -439,6 +458,7 @@ class Trainer:
         self.compute_metrics = compute_metrics
         self.preprocess_logits_for_metrics = preprocess_logits_for_metrics
         self.optimizer, self.lr_scheduler = optimizers
+
         if model_init is not None and (self.optimizer is not None or self.lr_scheduler is not None):
             raise RuntimeError(
                 "Passing a `model_init` is incompatible with providing the `optimizers` argument. "
@@ -987,6 +1007,36 @@ class Trainer:
             num_training_steps=num_training_steps,
             optimizer=self.optimizer.optimizer if is_sagemaker_mp_enabled() and smp.state.cfg.fp16 else self.optimizer,
         )
+        if self.sparsity_args is not None and self.sparsity_args.maskopt_sparsity > 0.:
+            train_dataloader = self.get_train_dataloader()
+            total_train_batch_size = self.args.train_batch_size * self.args.gradient_accumulation_steps * self.args.world_size
+
+            len_dataloader = None
+            if has_length(train_dataloader):
+                len_dataloader = len(train_dataloader)
+                num_update_steps_per_epoch = len_dataloader // self.args.gradient_accumulation_steps
+                num_update_steps_per_epoch = max(num_update_steps_per_epoch, 1)
+                num_examples = self.num_examples(train_dataloader)
+                if self.args.max_steps > 0:
+                    max_steps = self.args.max_steps
+                    num_train_epochs = self.args.max_steps // num_update_steps_per_epoch + int(
+                        self.args.max_steps % num_update_steps_per_epoch > 0
+                    )
+                    # May be slightly incorrect if the last batch in the training dataloader has a smaller size but it's
+                    # the best we can do.
+                    num_train_samples = self.args.max_steps * total_train_batch_size
+                else:
+                    max_steps = math.ceil(self.args.num_train_epochs * num_update_steps_per_epoch)
+                    num_train_epochs = math.ceil(self.args.num_train_epochs)
+                    num_train_samples = self.num_examples(train_dataloader) * self.args.num_train_epochs
+            elif self.args.max_steps > 0:  # Rely on max_steps when dataloader does not have a working size
+                max_steps = self.args.max_steps
+            self.mask_optimizer = create_mask_optimizer(
+                args=self.sparsity_args, model=self.model, optimizer=self.optimizer,
+                num_updates=max_steps,
+                get_sparsify_fn=_get_should_sparsify)
+        else:
+            self.mask_optimizer = None
 
     def create_optimizer(self):
         """
@@ -1760,6 +1810,8 @@ class Trainer:
                         optimizer_was_run = scale_before <= scale_after
                     else:
                         self.optimizer.step()
+                    if self.mask_optimizer is not None:
+                        self.mask_optimizer.step()
 
                     if optimizer_was_run and not self.deepspeed:
                         self.lr_scheduler.step()
@@ -1893,6 +1945,7 @@ class Trainer:
                     num_training_steps=self.args.max_steps,
                     resume_from_checkpoint=self.state.best_model_checkpoint,
                 )
+                # TODO: Resume sparsity optimizer here
                 self.model = deepspeed_engine.module
                 self.model_wrapped = deepspeed_engine
                 self.deepspeed = deepspeed_engine
@@ -2064,6 +2117,8 @@ class Trainer:
         elif self.args.should_save and not self.deepspeed:
             # deepspeed.save_checkpoint above saves model/optim/sched
             torch.save(self.optimizer.state_dict(), os.path.join(output_dir, OPTIMIZER_NAME))
+            if self.mask_optimizer is not None:
+                torch.save(self.mask_optimizer.state_dict(), os.path.join(output_dir, SPARSE_OPTIMIZER_NAME))
             with warnings.catch_warnings(record=True) as caught_warnings:
                 torch.save(self.lr_scheduler.state_dict(), os.path.join(output_dir, SCHEDULER_NAME))
             reissue_pt_warnings(caught_warnings)

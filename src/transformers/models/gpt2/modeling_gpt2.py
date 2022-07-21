@@ -17,6 +17,7 @@
 
 import math
 import os
+import re
 from dataclasses import dataclass
 from typing import Optional, Tuple, Union
 
@@ -537,6 +538,15 @@ class GPT2PreTrainedModel(PreTrainedModel):
     def _set_gradient_checkpointing(self, module, value=False):
         if isinstance(module, GPT2Model):
             module.gradient_checkpointing = value
+
+    def should_sparsify(self, n, p, args):
+        if args.sparsify_ffn and re.match('.*mlp\..*\.weight$', n):
+            return True
+        if args.sparsify_attention and re.match(
+            '.*attn\..*\.weight$', n):
+            return True
+        return False
+
 
 
 @dataclass
