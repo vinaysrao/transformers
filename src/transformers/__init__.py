@@ -22,7 +22,7 @@
 # to defer the actual importing for when the objects are requested. This way `import transformers` provides the names
 # in the namespace without actually importing anything (and especially none of the backends).
 
-__version__ = "4.21.0.dev0"
+__version__ = "4.21.0.dev0-vinayr"
 
 from typing import TYPE_CHECKING
 
@@ -416,7 +416,7 @@ _import_structure = {
         "TrainerState",
     ],
     "trainer_utils": ["EvalPrediction", "IntervalStrategy", "SchedulerType", "enable_full_determinism", "set_seed"],
-    "training_args": ["TrainingArguments"],
+    "training_args": ["TrainingArguments", "SparsityArguments"],
     "training_args_seq2seq": ["Seq2SeqTrainingArguments"],
     "training_args_tf": ["TFTrainingArguments"],
     "utils": [
@@ -3129,7 +3129,7 @@ if TYPE_CHECKING:
         TrainerState,
     )
     from .trainer_utils import EvalPrediction, IntervalStrategy, SchedulerType, enable_full_determinism, set_seed
-    from .training_args import TrainingArguments
+    from .training_args import TrainingArguments, SparsityArguments
     from .training_args_seq2seq import Seq2SeqTrainingArguments
     from .training_args_tf import TFTrainingArguments
 
@@ -4402,6 +4402,8 @@ if TYPE_CHECKING:
         from .optimization import (
             Adafactor,
             AdamW,
+            MuAdam,
+            MuAdamW,
             get_constant_schedule,
             get_constant_schedule_with_warmup,
             get_cosine_schedule_with_warmup,
